@@ -20,12 +20,8 @@ jobs:
 
       - name: Select latest available Xcode
         run: |
-          # versions.json targets Xcode 26.x which isn't on public runners yet.
-          # Pick the highest-versioned Xcode that IS installed, then override
-          # the version check in Make.py with --overrideXcodeVersion.
           LATEST=$(ls /Applications/ | grep -E '^Xcode_[0-9]' | sort -V | tail -1 | sed 's/.app//')
           if [ -z "$LATEST" ]; then
-            # fallback: use whatever xcode-select already points at
             echo "No versioned Xcode found, using default $(xcode-select -p)"
           else
             sudo xcode-select -s /Applications/$LATEST.app/Contents/Developer
@@ -69,20 +65,29 @@ jobs:
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER"
 
-          # collect ipa
-          OUTPUT_PATH="build/artifacts"
-          rm -rf "$OUTPUT_PATH"
+          # The IPA lands directly at bazel-bin/Telegram/Telegram.ipa
+          OUTPUT_PATH="$SOURCE_DIR/build/artifacts"
           mkdir -p "$OUTPUT_PATH"
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa; do
-            cp "$f" "$OUTPUT_PATH/"
-          done
+          cp "$SOURCE_DIR/bazel-bin/Telegram/Telegram.ipa" "$OUTPUT_PATH/Telegram.ipa"
 
-          # collect dsym
-          mkdir -p build/DSYMs
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/*.dSYM; do
-            cp -R "$f" build/DSYMs/
-          done
-          zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null
+          # collect dSYMs
+          mkdir -p "$SOURCE_DIR/build/DSYMs"
+          find "$SOURCE_DIR/bazel-bin/Telegram" -name '*.dSYM' -exec cp -R {} "$SOURCE_DIR/build/DSYMs/" \;
+          zip -r "$OUTPUT_PATH/Telegram.DSYMs.zip" "$SOURCE_DIR/build/DSYMs" 1>/dev/null
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          retention-days: 30
+
+      - name: Upload dSYMs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-dSYMs
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
+          retention-days: 30
 
       - name: Create Release
         id: create_release
@@ -97,7 +102,7 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload IPA
+      - name: Upload Release IPA
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,7 +112,7 @@ jobs:
           asset_name: Telegram.ipa
           asset_content_type: application/zip
 
-      - name: Upload dSYMs
+      - name: Upload Release dSYMs
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
