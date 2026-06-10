@@ -2,16 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+      - 'claude/**'
 
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'
@@ -87,7 +89,7 @@ jobs:
           prerelease: false
 
       - name: Upload Release IPA
-        id: upload-release-ipa 
+        id: upload-release-ipa
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -98,7 +100,7 @@ jobs:
           asset_content_type: application/zip
 
       - name: Upload Release DSYM
-        id: upload-release-dsym 
+        id: upload-release-dsym
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
